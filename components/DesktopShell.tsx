@@ -193,6 +193,58 @@ function getSquarePanelBounds(stageWidth: number, stageHeight: number) {
   }
 }
 
+function anchoredSpawnPosition(
+  side: "top" | "right" | "bottom" | "left",
+  size: number,
+  stageWidth: number,
+  stageHeight: number,
+  panelLeft: number,
+  panelTop: number,
+  panelRight: number,
+  panelBottom: number
+) {
+  const inset = size * RED_BORDER_OUTSET_RATIO
+  const centeredX = (panelLeft + panelRight) * 0.5 - size * 0.5
+  const centeredY = (panelTop + panelBottom) * 0.5 - size * 0.5
+
+  if (side === "top") {
+    return {
+      x: clamp(centeredX, 0, Math.max(0, stageWidth - size)),
+      y: clamp(panelTop - size - inset, 0, Math.max(0, stageHeight - size))
+    }
+  }
+
+  if (side === "right") {
+    return {
+      x: clamp(panelRight + inset, 0, Math.max(0, stageWidth - size)),
+      y: clamp(centeredY, 0, Math.max(0, stageHeight - size))
+    }
+  }
+
+  if (side === "bottom") {
+    return {
+      x: clamp(centeredX, 0, Math.max(0, stageWidth - size)),
+      y: clamp(panelBottom + inset, 0, Math.max(0, stageHeight - size))
+    }
+  }
+
+  return {
+    x: clamp(panelLeft - size - inset, 0, Math.max(0, stageWidth - size)),
+    y: clamp(centeredY, 0, Math.max(0, stageHeight - size))
+  }
+}
+
+function anchoredSpawnVelocity(side: "top" | "right" | "bottom" | "left") {
+  const drift = (Math.random() - 0.5) * 0.5
+  const settle = (Math.random() - 0.5) * 0.1
+
+  if (side === "top" || side === "bottom") {
+    return { vx: drift, vy: settle }
+  }
+
+  return { vx: settle, vy: drift }
+}
+
 export default function DesktopShell() {
   const stageRef = useRef<HTMLDivElement>(null)
   const nextZRef = useRef(1)
@@ -439,14 +491,29 @@ export default function DesktopShell() {
     const count = Math.min(spawnBatchCount(MAX_INITIAL_FACES), APP_REGISTRY.length)
     if (count === 0) return
 
+    const sides: Array<"top" | "right" | "bottom" | "left"> = ["top", "right", "bottom", "left"]
+    const panel = getSquarePanelBounds(stageSize.width, stageSize.height)
     const seeded: WindowItem[] = []
     for (let i = 0; i < count; i += 1) {
       const seededWindow = buildWindow(i, pickSquareColor())
-      const point = randomCanvasPosition(stageSize.width, stageSize.height, seededWindow.width)
+      const side = sides[i % sides.length]
+      const point = anchoredSpawnPosition(
+        side,
+        seededWindow.width,
+        stageSize.width,
+        stageSize.height,
+        panel.panelLeft,
+        panel.panelTop,
+        panel.panelRight,
+        panel.panelBottom
+      )
+      const velocity = anchoredSpawnVelocity(side)
       seeded.push({
         ...seededWindow,
         x: point.x,
         y: point.y,
+        vx: velocity.vx,
+        vy: velocity.vy,
         zIndex: i + 1
       })
     }
