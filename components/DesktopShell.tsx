@@ -56,6 +56,7 @@ const DRIFT_BASE_DAMPING = 0.985
 const DRIFT_SPEED_FRICTION = 0.02
 const DRIFT_MIN_DAMPING = 0.94
 const MAX_DRIFT_SPEED = 1.4
+const INITIAL_ANIMATION_MS = 2800
 const SPAWN_RATIO_PERCENT = clamp(
   Number(process.env.NEXT_PUBLIC_SPAWN_RATIO_PERCENT ?? "100"),
   1,
@@ -120,10 +121,12 @@ function getResponsiveSquareSizeBounds(stageWidth: number, stageHeight: number) 
 function getCenterPanelSize(stageWidth: number, stageHeight: number) {
   const desktopPanelSize = Math.min(420, stageWidth * 0.42, stageHeight * 0.42)
   const { maxSize } = getResponsiveSquareSizeBounds(stageWidth, stageHeight)
-  const mobileLaneReserve = maxSize + MOBILE_EDGE_LANE_GAP
+  const redEdgeScale = 1 + RED_BORDER_OUTSET_RATIO * 2
+  const mobileWidthLimitForRedEdges =
+    (stageWidth - PANEL_VIEWPORT_MARGIN) / redEdgeScale - maxSize * 2 - MOBILE_EDGE_LANE_GAP * 2
   const mobilePanelSize = Math.max(
     MIN_SIZE,
-    Math.min(stageWidth - PANEL_VIEWPORT_MARGIN - mobileLaneReserve, stageHeight - PANEL_VIEWPORT_MARGIN)
+    Math.min(mobileWidthLimitForRedEdges, stageHeight - PANEL_VIEWPORT_MARGIN)
   )
   return stageWidth <= MOBILE_BREAKPOINT ? mobilePanelSize : desktopPanelSize
 }
@@ -413,10 +416,67 @@ function resolveWindowPairToEdgeContact(
   }
 }
 
+function enforceNoOverlapConstraints(
+  windows: WindowItem[],
+  activeId: string | null,
+  stageWidth: number,
+  stageHeight: number,
+  panelLeft: number,
+  panelTop: number,
+  panelRight: number,
+  panelBottom: number
+) {
+  if (windows.length <= 1) {
+    for (const w of windows) {
+      const panelResolved = resolveRedBoundsPanelCollision(
+        w.x,
+        w.y,
+        w.width,
+        w.height,
+        panelLeft,
+        panelTop,
+        panelRight,
+        panelBottom
+      )
+      w.x = clamp(panelResolved.x, 0, Math.max(0, stageWidth - w.width))
+      w.y = clamp(panelResolved.y, 0, Math.max(0, stageHeight - w.height))
+    }
+    return
+  }
+
+  for (let pass = 0; pass < 4; pass += 1) {
+    for (let i = 0; i < windows.length; i += 1) {
+      const a = windows[i]
+      const aActive = a.id === activeId
+      for (let j = i + 1; j < windows.length; j += 1) {
+        const b = windows[j]
+        const bActive = b.id === activeId
+        resolveWindowPairToEdgeContact(a, b, aActive, bActive)
+      }
+    }
+
+    for (const w of windows) {
+      const panelResolved = resolveRedBoundsPanelCollision(
+        w.x,
+        w.y,
+        w.width,
+        w.height,
+        panelLeft,
+        panelTop,
+        panelRight,
+        panelBottom
+      )
+      w.x = clamp(panelResolved.x, 0, Math.max(0, stageWidth - w.width))
+      w.y = clamp(panelResolved.y, 0, Math.max(0, stageHeight - w.height))
+    }
+  }
+}
+
 export default function DesktopShell() {
   const stageRef = useRef<HTMLDivElement>(null)
   const nextZRef = useRef(1)
   const bootedRef = useRef(false)
+  const animationStartRef = useRef(0)
   const interactionRef = useRef<DragState | null>(null)
 
   const [stageSize, setStageSize] = useState({ width: 1280, height: 720 })
@@ -468,13 +528,19 @@ export default function DesktopShell() {
 
   useEffect(() => {
     let raf = 0
+    if (animationStartRef.current === 0) {
+      animationStartRef.current = performance.now()
+    }
 
     const tick = () => {
       const t = performance.now() * 0.001
+      const initialAnimationDone = performance.now() - animationStartRef.current >= INITIAL_ANIMATION_MS
       setWindows((prev) => {
         if (prev.length === 0) return prev
 
-        const activeId = interactionRef.current?.windowId ?? null
+        const draggingId = interactionRef.current?.windowId ?? null
+        const lockedSelectedId = initialAnimationDone ? selectedId : null
+        const activeId = draggingId ?? lockedSelectedId
         const next = prev.map((w) => ({ ...w }))
         const { panelLeft, panelTop, panelRight, panelBottom } = getSquarePanelBounds(stageSize.width, stageSize.height)
 
@@ -567,6 +633,17 @@ export default function DesktopShell() {
           constrainToEdgeTravel(w, stageSize.width, stageSize.height, panelLeft, panelTop, panelRight, panelBottom)
         }
 
+        enforceNoOverlapConstraints(
+          next,
+          activeId,
+          stageSize.width,
+          stageSize.height,
+          panelLeft,
+          panelTop,
+          panelRight,
+          panelBottom
+        )
+
         return next
       })
 
@@ -575,7 +652,7 @@ export default function DesktopShell() {
 
     raf = window.requestAnimationFrame(tick)
     return () => window.cancelAnimationFrame(raf)
-  }, [stageSize.width, stageSize.height])
+  }, [selectedId, stageSize.width, stageSize.height])
 
   function seedInitialFour() {
     const count = Math.min(spawnBatchCount(MAX_INITIAL_FACES), APP_REGISTRY.length)
@@ -623,7 +700,8 @@ export default function DesktopShell() {
   useEffect(() => {
     const { maxSize: responsiveMaxSize } = getResponsiveSquareSizeBounds(stageSize.width, stageSize.height)
     setWindows((prev) =>
-      prev.map((w) => {
+      {
+        const resized = prev.map((w) => {
         const minSize = getLabelMinimumSquareSize(w.title)
         const maxSize = Math.max(minSize, responsiveMaxSize)
         const nextSize = clamp(w.width, minSize, maxSize)
@@ -640,6 +718,19 @@ export default function DesktopShell() {
           vy: 0
         }
       })
+        const { panelLeft, panelTop, panelRight, panelBottom } = getSquarePanelBounds(stageSize.width, stageSize.height)
+        enforceNoOverlapConstraints(
+          resized,
+          interactionRef.current?.windowId ?? null,
+          stageSize.width,
+          stageSize.height,
+          panelLeft,
+          panelTop,
+          panelRight,
+          panelBottom
+        )
+        return resized
+      }
     )
   }, [stageSize.width, stageSize.height])
 
@@ -679,7 +770,8 @@ export default function DesktopShell() {
     const deltaY = event.clientY - active.startPointerY
 
     setWindows((prev) =>
-      prev.map((w) => {
+      {
+        const nextWindows = prev.map((w) => {
         if (w.id !== active.windowId) return w
 
         if (active.type === "drag") {
@@ -722,6 +814,19 @@ export default function DesktopShell() {
           vy: 0
         }
       })
+        const { panelLeft, panelTop, panelRight, panelBottom } = getSquarePanelBounds(stageSize.width, stageSize.height)
+        enforceNoOverlapConstraints(
+          nextWindows,
+          active.windowId,
+          stageSize.width,
+          stageSize.height,
+          panelLeft,
+          panelTop,
+          panelRight,
+          panelBottom
+        )
+        return nextWindows
+      }
     )
   }
 

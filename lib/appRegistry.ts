@@ -21,7 +21,7 @@ const ASTRAEA_SOURCE = resolveSource(
   "http://localhost:3101",
   process.env.NEXT_PUBLIC_ASTRAEA_URL
 )
-const OVEL_SOURCE = resolveSource("ovel", "http://localhost:3102", process.env.NEXT_PUBLIC_OVEL_URL)
+const OVEL_SOURCE = resolveSource("ovel-core", "http://localhost:3102", process.env.NEXT_PUBLIC_OVEL_URL)
 const HELIOS_SOURCE = resolveSource(
   "helios-lattice",
   "http://localhost:3103",
@@ -41,8 +41,8 @@ export const APP_REGISTRY: AppDefinition[] = [
     source: ASTRAEA_SOURCE
   },
   {
-    id: "ovel",
-    title: "Ovel",
+    id: "ovel-core",
+    title: "Ovel Core",
     description: "Framed app",
     source: OVEL_SOURCE
   },
