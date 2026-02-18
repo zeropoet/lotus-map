@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="title desc">
+  <title id="title">OVEL Geometric Logo</title>
+  <desc id="desc">A full geometric emblem based on concentric circles for OVEL.</desc>
+  <defs>
+    <style>
+      .line { fill: none; stroke: #000; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+      .heavy { stroke-width: 2.4; }
+      .mid { stroke-width: 1.8; }
+      .fine { stroke-width: 1.2; }
+      .core {
+        transform: scale(1);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .core { transform: scale(1); }
+      }
+    </style>
+  </defs>
+
+  <!-- Core OVEL mark -->
+  <g class="core">
+    <circle class="line heavy" cx="600" cy="600" r="220" />
+    <circle class="line mid" cx="600" cy="600" r="122" />
+    <circle class="line fine" cx="600" cy="600" r="52" stroke-opacity="0" />
+  </g>
+</svg>

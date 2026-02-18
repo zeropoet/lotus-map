@@ -60,7 +60,8 @@
     }
 
     .brand-link {
-      display: inline-block;
+      display: block;
+      line-height: 0;
     }
 
     .logo {
@@ -74,6 +75,7 @@
       .brand {
         z-index: 3;
         opacity: 0.8;
+        pointer-events: auto;
       }
 
       .logo {
@@ -121,8 +123,8 @@
 </head>
 <body>
   <div class="brand">
-    <a class="brand-link" href="https://zeropoet.xyz" aria-label="Visit zeropoet.xyz">
-      <img class="logo" src="./logo.svg" alt="">
+    <a class="brand-link" href="https://zeropoet.xyz/" aria-label="Go to zeropoet.xyz">
+      <img class="logo" src="ovel-geometry-logo.svg" alt="Zeropoet logo">
     </a>
   </div>
   <main class="shell">
